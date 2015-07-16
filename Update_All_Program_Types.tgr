@@ -1,0 +1,61 @@
+trigger ProgType on Opportunity (after insert, after update, after delete, after undelete) {
+    //Create contact list
+    set<ID> contactIds = new set<ID>();
+    //Create opportunity list
+    set<ID> oppIds = new set<ID>();
+    //Add opportunity IDs to opportunity list for all opportunities that are triggering
+    if (Trigger.new != null) {
+        for (Opportunity record: trigger.new) {
+            if(record.recordtypeid == '012a00000018Esx' || record.recordtypeid == '012300000006GiS' || record.RecordTypeId == '012300000006GiI') {
+                oppIDs.add(record.id);
+            }
+        }
+    }
+    if (trigger.old != null) {
+        for (Opportunity record: trigger.old) {
+            if (record.recordtypeid == '012a00000018Esx' || record.recordtypeid == '012300000006GiS' || record.RecordTypeId == '012300000006GiI') {
+                oppIds.add(record.id);
+            }
+        }
+    }
+        
+    //below is the code to populate the all program types field on contacts related to this opportunity
+    //remove any null values from the Opportunity list   
+    oppIds.remove(null);
+    //Add all contacts to the Contact list that have a contact role related to an opportunity in the Opportunity list
+    for (opportunitycontactrole o: [select contactid from opportunitycontactrole where opportunityid in :oppIds]) {
+        contactIds.add(o.contactid);
+    }
+    //remove any null values from the Contact List
+    contactIds.remove(null);
+    //create a new list of opportunities
+    list<id> newOppIds = new list<id>();
+    //populate the new list with all opportunities related to Contacts in the contact list as investor, joint investor, trustee, or account representative
+    for (opportunitycontactrole o: [select opportunityid, opportunity.stagename from opportunitycontactrole where contactid in :contactIds and role in ('Investor','Joint Investor','Trustee','Account Representative')]) {
+        if (o.Opportunity.stagename=='converted' || o.opportunity.stagename == 'reinvested') {
+            newOppIds.add(o.OpportunityId);
+        }
+    }
+    //create blank map of contact id and set of program types
+    map<Id, Set<String>> programs = new Map<Id, Set<String>>();
+    //populate map with contact id and all related program types
+    for (Opportunitycontactrole record: [SELECT contactid, opportunity.program_type__c FROM Opportunitycontactrole WHERE opportunityid in :newOppIds]) {
+        if (programs.containsKey(record.contactid)) {
+            programs.get(record.contactid).add(record.opportunity.program_type__c);
+        } else {
+            programs.put(record.contactid, new Set<String> { record.opportunity.program_type__c });
+        }
+    }
+    //create blank list of contacts to be updated
+    Contact[] contacts = new Contact[0];
+    //populate list of contacts to be updated
+    for (Id contactID: contactIds) {
+        contacts.add(new Contact(ID=contactId, All_Program_Types__c=programs.containsKey(contactId)?JSON.serialize(programs.get(contactId)):null));
+    }
+    try {
+        update contacts;
+    } catch (system.DmlException e) {
+        system.debug (e);
+    }
+    
+}
