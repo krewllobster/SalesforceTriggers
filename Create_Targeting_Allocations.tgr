@@ -1,0 +1,83 @@
+trigger Create_Targeting_Allocation on Opportunity (after insert, after update) {
+    
+    if (trigger.isinsert || trigger.isundelete) {
+        
+        list<targeting_allocation__c> toInsert = new list<targeting_allocation__c>();
+    
+        for (opportunity o: trigger.new) {
+            if (o.id != null && (o.RecordTypeId=='012a00000018Esx' || o.RecordTypeId == '012300000006GiS' || o.RecordTypeId == '012300000006GiI')){
+                    targeting_allocation__c x, y, z;
+                x = new targeting_allocation__c (); y = new targeting_allocation__c (); z = new targeting_allocation__c ();
+                x.allocation_opportunity__c = o.id; y.allocation_opportunity__c = o.id; z.allocation_opportunity__c = o.id;
+                x.Allocation_Percent__c = 100; y.Allocation_Percent__c = 100; z.Allocation_Percent__c = 100;
+                x.Program_Type__c = o.program_type__c; y.Program_Type__c = o.program_type__c;
+                if (o.program_type__c == 'MMA Balanced') {
+                    x.Allocation_Percent__c = 50; y.Allocation_Percent__c = 50;
+                    x.Program_Type__c = 'MMA mPower'; y.Program_Type__c = 'MMA nSpire';
+                    toInsert.add(x); toInsert.add(y);
+                } else if (o.program_type__c == 'Bend the Arc JFSJ Note') {
+                    x.Allocation_Percent__c = 40; y.Allocation_Percent__c = 40; z.Allocation_Percent__c = 20;
+                    x.Program_Type__c = 'Affordable Housing'; y.Program_Type__c = 'Small Business'; z.Program_Type__c = 'Education';
+                    toInsert.add(x); toInsert.add(y); toInsert.add(z);
+                } else if (o.program_type__c == 'Custom Targeted') {
+                    x.Program_Type__c = 'Untargeted';
+                    toInsert.add(x);
+                } else if (o.program_type__c == 'NPCA Microenterprise Program Note') {
+                    x.Program_Type__c = 'Microfinance';
+                    toInsert.add(x);
+                } else {
+                    toInsert.add(x);
+                }
+            }
+        }
+        try {
+            insert toInsert;
+        } catch (system.DmlException e) {
+            system.debug(e);
+        }
+    }
+    
+    if (trigger.isupdate) {
+        set<id> ids = new set<id>();
+        list<targeting_allocation__c> toInsert = new list<targeting_allocation__c>();
+        for(opportunity o: trigger.new) {
+            if (o.id != null && (o.RecordTypeId=='012a00000018Esx' || o.RecordTypeId == '012300000006GiS' || o.RecordTypeId == '012300000006GiI')) {
+                if (o.program_type__c != trigger.oldmap.get(o.id).program_type__c) {
+                   ids.add(o.id);
+                }
+            }
+        }
+        
+        for(opportunity o: [select id, program_type__c from opportunity where id in :ids]) {
+            targeting_allocation__c x, y, z;
+            x = new targeting_allocation__c (); y = new targeting_allocation__c (); z = new targeting_allocation__c ();
+            x.allocation_opportunity__c = o.id; y.allocation_opportunity__c = o.id; z.allocation_opportunity__c = o.id;
+            x.Allocation_Percent__c = 100; y.Allocation_Percent__c = 100; z.Allocation_Percent__c = 100;
+            x.Program_Type__c = o.program_type__c; y.Program_Type__c = o.program_type__c;
+            if (o.program_type__c == 'MMA Balanced') {
+                x.Allocation_Percent__c = 50; y.Allocation_Percent__c = 50;
+                x.Program_Type__c = 'MMA mPower'; y.Program_Type__c = 'MMA nSpire';
+                toInsert.add(x); toInsert.add(y);
+            } else if (o.program_type__c == 'Bend the Arc JFSJ Note') {
+                x.Allocation_Percent__c = 40; y.Allocation_Percent__c = 40; z.Allocation_Percent__c = 20;
+                x.Program_Type__c = 'Affordable Housing'; y.Program_Type__c = 'Small Business'; z.Program_Type__c = 'Education';
+                toInsert.add(x); toInsert.add(y); toInsert.add(z);
+            } else if (o.program_type__c == 'Custom Targeted') {
+                x.Program_Type__c = 'Untargeted';
+                toInsert.add(x);
+            } else if (o.program_type__c == 'NPCA Microenterprise Program Note') {
+                x.Program_Type__c = 'Microfinance';
+                toInsert.add(x);
+            } else {
+                toInsert.add(x);
+            }
+        }
+        try {
+            delete [select id from targeting_allocation__c where allocation_opportunity__c in :ids];
+            insert toInsert;
+        } catch (system.DmlException e) {
+            system.debug(e);
+        }
+    }
+    
+}
